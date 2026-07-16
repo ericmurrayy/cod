@@ -140,6 +140,9 @@ def convert_image_slots(doc):
 def convert_booking_handlers(doc):
     doc = doc.replace('onSubmit="{{ submitBooking }}"', "data-booking-form")
     doc = doc.replace('onClick="{{ resetBooking }}"', "data-booking-reset")
+    doc = doc.replace('required="{{ true }}"', "required")
+    # Literal attribute expressions like rows="{{ 3 }}" -> rows="3"
+    doc = re.sub(r'="\{\{\s*(\d+)\s*\}\}"', r'="\1"', doc)
     return doc
 
 
@@ -290,6 +293,12 @@ img, svg, video, iframe { max-width: 100%; }
 @media (max-width: 760px) {
   /* keep tap targets comfortable */
   a { -webkit-tap-highlight-color: rgba(255, 170, 29, .2); }
+  /* the hamburger squeezes the header row; slim the call CTA so the
+     wordmark never clips */
+  header a[href^="tel:"] { padding: 7px 10px !important; }
+  header a[href^="tel:"] > span:first-child { font-size: 9px !important; letter-spacing: .1em !important; }
+  header a[href^="tel:"] > span:last-child { font-size: 16px !important; }
+  header > div > a:first-child > span:last-child { font-size: 14px !important; }
 }
 @media (min-width: 761px) {
   /* the 96px footer padding only exists to clear the mobile call bar */
