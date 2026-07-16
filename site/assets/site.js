@@ -32,22 +32,6 @@
     if (target === here) a.setAttribute('aria-current', 'page');
   });
 
-  // Scroll-reveal for below-the-fold sections (skipped for reduced motion)
-  if (window.IntersectionObserver &&
-      !matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    var io = new IntersectionObserver(function (entries) {
-      entries.forEach(function (en) {
-        if (en.isIntersecting) { en.target.classList.add('cod-in'); io.unobserve(en.target); }
-      });
-    }, { rootMargin: '0px 0px -8% 0px' });
-    document.querySelectorAll('section').forEach(function (sec) {
-      // only sections fully below the first viewport — never dim visible content
-      if (sec.getBoundingClientRect().top > window.innerHeight) {
-        sec.classList.add('cod-reveal');
-        io.observe(sec);
-      }
-    });
-  }
 
   // Live open/closed label (Mon–Sat 7am–7pm)
   var now = new Date();

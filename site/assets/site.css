@@ -87,12 +87,13 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
 details > summary > span:last-child { transition: transform .18s ease; }
 details[open] > summary > span:last-child { transform: rotate(45deg); }
 
-/* Scroll-reveal (site.js tags below-the-fold sections; no-JS pages stay visible) */
 @media (prefers-reduced-motion: no-preference) {
   html { scroll-behavior: smooth; }
-  .cod-reveal { opacity: 0; transform: translateY(16px); }
-  .cod-reveal.cod-in { opacity: 1; transform: none; transition: opacity .55s ease, transform .55s ease; }
 }
+
+/* Paint the canvas dark so overscroll past the footer (or above the header)
+   never flashes white against the dark chrome. Body keeps the light ground. */
+html { background: #101a21; }
 
 /* Photo placeholders: a touch of depth + amber threshold line */
 .cod-photo { position: relative; overflow: hidden; }
