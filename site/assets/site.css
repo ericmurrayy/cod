@@ -83,6 +83,11 @@ a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visib
 .cod-menu a[aria-current="page"],
 .cod-desktop nav a[aria-current="page"] { color: #ffaa1d !important; }
 
+/* Never let one long unbreakable word (an email address, "Tyngsborough.")
+   push the page wider than the viewport: allow in-word breaks in headings,
+   and let grid/flex tracks shrink below the word's natural width. */
+h1, h2, h3, h4 { overflow-wrap: anywhere; }
+
 /* FAQ accordion: rotate the + marker when open */
 details > summary > span:last-child { transition: transform .18s ease; }
 details[open] > summary > span:last-child { transform: rotate(45deg); }
