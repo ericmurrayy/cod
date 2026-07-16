@@ -5,15 +5,47 @@
   // Mobile menu
   var btn = document.getElementById('cod-menu-btn');
   var menu = document.getElementById('cod-menu');
+  function setMenu(open) {
+    btn.setAttribute('aria-expanded', String(open));
+    btn.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+    menu.hidden = !open;
+  }
   if (btn && menu) {
     btn.addEventListener('click', function () {
-      var open = btn.getAttribute('aria-expanded') === 'true';
-      btn.setAttribute('aria-expanded', String(!open));
-      btn.setAttribute('aria-label', open ? 'Open menu' : 'Close menu');
-      menu.hidden = open;
+      setMenu(btn.getAttribute('aria-expanded') !== 'true');
     });
     menu.addEventListener('click', function (e) {
-      if (e.target.closest('a')) { btn.setAttribute('aria-expanded', 'false'); menu.hidden = true; }
+      if (e.target.closest('a')) setMenu(false);
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !menu.hidden) { setMenu(false); btn.focus(); }
+    });
+    document.addEventListener('click', function (e) {
+      if (!menu.hidden && !e.target.closest('header')) setMenu(false);
+    });
+  }
+
+  // Mark the current page in the menu and desktop nav
+  var here = location.pathname.replace(/\/+$/, '');
+  document.querySelectorAll('#cod-menu a, .cod-desktop nav a').forEach(function (a) {
+    var target = new URL(a.getAttribute('href'), location.href).pathname.replace(/\/+$/, '');
+    if (target === here) a.setAttribute('aria-current', 'page');
+  });
+
+  // Scroll-reveal for below-the-fold sections (skipped for reduced motion)
+  if (window.IntersectionObserver &&
+      !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (en.isIntersecting) { en.target.classList.add('cod-in'); io.unobserve(en.target); }
+      });
+    }, { rootMargin: '0px 0px -8% 0px' });
+    document.querySelectorAll('section').forEach(function (sec) {
+      // only sections fully below the first viewport — never dim visible content
+      if (sec.getBoundingClientRect().top > window.innerHeight) {
+        sec.classList.add('cod-reveal');
+        io.observe(sec);
+      }
     });
   }
 

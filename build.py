@@ -21,10 +21,11 @@ Usage:
   python3 build.py             build everything into site/
   python3 build.py --missing   list manifest files not yet in design-src/
 """
+import html
+import json
 import os
 import re
 import sys
-import html
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 SRC = os.path.join(ROOT, "design-src")
@@ -172,15 +173,6 @@ def compile_page(src_rel):
     head_inner = hm2.group(1).strip()
 
     canonical = DOMAIN + "/" + (out_rel if out_rel != "index.html" else "")
-    head = (
-        "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n"
-        + head_inner + "\n"
-        + helmet + "\n"
-        + f'<link rel="canonical" href="{canonical}">\n'
-        + f'<link rel="stylesheet" href="{prefix}assets/site.css">\n'
-        + f'<script src="{prefix}assets/site.js" defer></script>\n'
-        + "</head>\n<body>\n"
-    )
 
     body = template
     body = convert_sc_ifs(body, src_rel)
@@ -198,12 +190,66 @@ def compile_page(src_rel):
 
     body = inject_menu(body, out_rel)
     body = rewrite_links(body, out_rel)
+    # Skip-link target right after the sticky header.
+    body = body.replace("</header>", '</header>\n<span id="cod-main" tabindex="-1"></span>', 1)
+
+    head = (
+        "<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n"
+        + head_inner + "\n"
+        + helmet + "\n"
+        + f'<link rel="canonical" href="{canonical}">\n'
+        + '<meta name="theme-color" content="#18242e">\n'
+        + f'<link rel="icon" type="image/svg+xml" href="{prefix}assets/favicon.svg">\n'
+        + f'<link rel="apple-touch-icon" href="{prefix}assets/apple-touch-icon.png">\n'
+        + f'<meta property="og:url" content="{canonical}">\n'
+        + '<meta property="og:site_name" content="Chelmsford Overhead Door">\n'
+        + f'<meta property="og:image" content="{DOMAIN}/assets/og-image.png">\n'
+        + '<meta property="og:image:width" content="1200">\n'
+        + '<meta property="og:image:height" content="630">\n'
+        + '<meta name="twitter:card" content="summary_large_image">\n'
+        + breadcrumb_jsonld(body, out_rel)
+        + f'<link rel="stylesheet" href="{prefix}assets/site.css">\n'
+        + f'<script src="{prefix}assets/site.js" defer></script>\n'
+        + "</head>\n<body>\n"
+        + '<a class="cod-skip" href="#cod-main">Skip to content</a>\n'
+    )
 
     out_file = os.path.join(OUT, out_rel)
     os.makedirs(os.path.dirname(out_file), exist_ok=True)
     with open(out_file, "w") as f:
         f.write(head + body.strip() + "\n</body>\n</html>\n")
     return out_rel
+
+
+def breadcrumb_jsonld(body, out_rel):
+    """Emit BreadcrumbList JSON-LD parsed from the page's visible breadcrumb
+    trail (the hero's 'Home / Services / …' line). Empty for pages without one."""
+    m = re.search(r"<p[^>]*>(<a [^>]*>Home</a>.*?)</p>", body, re.S)
+    if not m:
+        return ""
+    trail = m.group(1)
+    items = []
+    for a in re.finditer(r'<a href="([^"]+)"[^>]*>([^<]+)</a>', trail):
+        href, label = a.group(1), a.group(2).strip()
+        # Resolve the page-relative href against the site root.
+        base = os.path.dirname(out_rel)
+        path = os.path.normpath(os.path.join(base, href)).replace(os.sep, "/")
+        url = DOMAIN + "/" + ("" if path == "index.html" else path)
+        items.append((label, url))
+    tail = re.findall(r"<span[^>]*>([^<]+)</span>", trail)
+    leaf = next((t.strip() for t in reversed(tail) if t.strip() != "/"), None)
+    if leaf:
+        items.append((leaf, None))
+    if len(items) < 2:
+        return ""
+    entries = []
+    for i, (label, url) in enumerate(items, 1):
+        entry = {"@type": "ListItem", "position": i, "name": label}
+        if url:
+            entry["item"] = url
+        entries.append(entry)
+    data = {"@context": "https://schema.org", "@type": "BreadcrumbList", "itemListElement": entries}
+    return '<script type="application/ld+json">' + json.dumps(data, ensure_ascii=False) + "</script>\n"
 
 
 def menu_html(out_rel):
@@ -305,6 +351,44 @@ img, svg, video, iframe { max-width: 100%; }
   footer { padding-bottom: 44px !important; }
 }
 
+/* Accessibility: skip link + visible keyboard focus */
+.cod-skip {
+  position: absolute; left: -9999px; top: 0; z-index: 100;
+  background: #ffaa1d; color: #18242e; text-decoration: none;
+  font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .05em; font-size: 16px; padding: 10px 18px;
+}
+.cod-skip:focus { left: 0; }
+a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible {
+  outline: 2px solid #ffaa1d; outline-offset: 2px;
+}
+
+/* Current page highlighted in navs (set by site.js) */
+.cod-menu a[aria-current="page"],
+.cod-desktop nav a[aria-current="page"] { color: #ffaa1d !important; }
+
+/* FAQ accordion: rotate the + marker when open */
+details > summary > span:last-child { transition: transform .18s ease; }
+details[open] > summary > span:last-child { transform: rotate(45deg); }
+
+/* Scroll-reveal (site.js tags below-the-fold sections; no-JS pages stay visible) */
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+  .cod-reveal { opacity: 0; transform: translateY(16px); }
+  .cod-reveal.cod-in { opacity: 1; transform: none; transition: opacity .55s ease, transform .55s ease; }
+}
+
+/* Photo placeholders: a touch of depth + amber threshold line */
+.cod-photo { position: relative; overflow: hidden; }
+.cod-photo::before {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(120deg, rgba(255,255,255,.05) 0%, transparent 45%);
+}
+.cod-photo::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 5px;
+  background: #ffaa1d; opacity: .85;
+}
+
 /* Generated :hover rules (compiled from style-hover attributes) */
 """
 
@@ -315,15 +399,47 @@ SITE_JS = """// Generated by build.py — menu toggle, open-hours label, booking
   // Mobile menu
   var btn = document.getElementById('cod-menu-btn');
   var menu = document.getElementById('cod-menu');
+  function setMenu(open) {
+    btn.setAttribute('aria-expanded', String(open));
+    btn.setAttribute('aria-label', open ? 'Close menu' : 'Open menu');
+    menu.hidden = !open;
+  }
   if (btn && menu) {
     btn.addEventListener('click', function () {
-      var open = btn.getAttribute('aria-expanded') === 'true';
-      btn.setAttribute('aria-expanded', String(!open));
-      btn.setAttribute('aria-label', open ? 'Open menu' : 'Close menu');
-      menu.hidden = open;
+      setMenu(btn.getAttribute('aria-expanded') !== 'true');
     });
     menu.addEventListener('click', function (e) {
-      if (e.target.closest('a')) { btn.setAttribute('aria-expanded', 'false'); menu.hidden = true; }
+      if (e.target.closest('a')) setMenu(false);
+    });
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape' && !menu.hidden) { setMenu(false); btn.focus(); }
+    });
+    document.addEventListener('click', function (e) {
+      if (!menu.hidden && !e.target.closest('header')) setMenu(false);
+    });
+  }
+
+  // Mark the current page in the menu and desktop nav
+  var here = location.pathname.replace(/\\/+$/, '');
+  document.querySelectorAll('#cod-menu a, .cod-desktop nav a').forEach(function (a) {
+    var target = new URL(a.getAttribute('href'), location.href).pathname.replace(/\\/+$/, '');
+    if (target === here) a.setAttribute('aria-current', 'page');
+  });
+
+  // Scroll-reveal for below-the-fold sections (skipped for reduced motion)
+  if (window.IntersectionObserver &&
+      !matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (en) {
+        if (en.isIntersecting) { en.target.classList.add('cod-in'); io.unobserve(en.target); }
+      });
+    }, { rootMargin: '0px 0px -8% 0px' });
+    document.querySelectorAll('section').forEach(function (sec) {
+      // only sections fully below the first viewport — never dim visible content
+      if (sec.getBoundingClientRect().top > window.innerHeight) {
+        sec.classList.add('cod-reveal');
+        io.observe(sec);
+      }
     });
   }
 
@@ -362,6 +478,134 @@ def write_assets():
         f.write(SITE_JS)
 
 
+FAVICON_SVG = """<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+<rect width="64" height="64" fill="#18242e"/>
+<rect x="7" y="7" width="50" height="50" fill="none" stroke="#ffaa1d" stroke-width="6"/>
+<rect x="18" y="21" width="28" height="6" fill="#ffaa1d"/>
+<rect x="18" y="32" width="28" height="6" fill="#ffaa1d"/>
+<rect x="18" y="43" width="28" height="6" fill="#ffaa1d"/>
+</svg>
+"""
+
+
+def write_icons():
+    """favicon.svg (brand mark), apple-touch-icon.png, og-image.png."""
+    assets = os.path.join(OUT, "assets")
+    os.makedirs(assets, exist_ok=True)
+    with open(os.path.join(assets, "favicon.svg"), "w") as f:
+        f.write(FAVICON_SVG)
+
+    from PIL import Image, ImageDraw, ImageFont
+
+    dark, amber, panel = (24, 36, 46), (255, 170, 29), (44, 63, 80)
+
+    def mark(draw, x, y, s):
+        """The square-and-bars logo at box size s."""
+        bw = max(2, s // 10)
+        draw.rectangle([x, y, x + s, y + s], outline=amber, width=bw)
+        bar_w, bar_h = int(s * 0.44), max(2, int(s * 0.09))
+        bx = x + (s - bar_w) // 2
+        for i in range(3):
+            by = y + int(s * (0.30 + 0.17 * i))
+            draw.rectangle([bx, by, bx + bar_w, by + bar_h], fill=amber)
+
+    # apple-touch-icon 180x180
+    img = Image.new("RGB", (180, 180), dark)
+    d = ImageDraw.Draw(img)
+    mark(d, 30, 30, 120)
+    img.save(os.path.join(assets, "apple-touch-icon.png"))
+
+    # og-image 1200x630: dark card with panel lines, mark + wordmark + tagline
+    W, H = 1200, 630
+    img = Image.new("RGB", (W, H), dark)
+    d = ImageDraw.Draw(img)
+    for y in range(0, H, 105):  # horizontal garage-door panel seams
+        d.line([(0, y), (W, y)], fill=panel, width=3)
+        d.line([(0, y + 3), (W, y + 3)], fill=(255, 255, 255, 12), width=1)
+    font_dir = "/usr/share/fonts/truetype/liberation"
+    bold = ImageFont.truetype(os.path.join(font_dir, "LiberationSans-Bold.ttf"), 92)
+    small = ImageFont.truetype(os.path.join(font_dir, "LiberationSans-Bold.ttf"), 36)
+    mark(d, 90, 150, 150)
+    d.text((290, 160), "CHELMSFORD", font=bold, fill=(255, 255, 255))
+    d.text((290, 262), "OVERHEAD DOOR", font=bold, fill=amber)
+    d.text((92, 420), "SAME-DAY GARAGE DOOR SERVICE", font=small, fill=(205, 215, 221))
+    d.text((92, 472), "CHELMSFORD, MA · (978) 555-0100", font=small, fill=(159, 176, 186))
+    d.rectangle([0, H - 14, W, H], fill=amber)
+    img.save(os.path.join(assets, "og-image.png"))
+
+
+def write_404():
+    """Standalone 404 page in the site's visual language."""
+    menu = menu_html("404.html")
+    btn, panel = menu.split('<nav id="cod-menu"', 1)
+    panel = '<nav id="cod-menu"' + panel
+    links = "\n        ".join(
+        f'<a href="{t}" style="color:#b7c3cb;">{l}</a>' for l, t in MENU_LINKS
+    )
+    doc = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Page Not Found | Chelmsford Overhead Door</title>
+<meta name="robots" content="noindex">
+<meta name="theme-color" content="#18242e">
+<link rel="icon" type="image/svg+xml" href="assets/favicon.svg">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+<style>
+  html, body {{ margin: 0; padding: 0; background: #18242e; }}
+  body {{ font-family: 'Archivo', system-ui, sans-serif; color: #e9eef1; -webkit-font-smoothing: antialiased; }}
+  * {{ box-sizing: border-box; }}
+  a {{ color: #d98a00; }}
+</style>
+<link rel="stylesheet" href="assets/site.css">
+<script src="assets/site.js" defer></script>
+</head>
+<body>
+<header style="position: sticky; top: 0; z-index: 50; background: #18242e; border-bottom: 1px solid #2c3f50;">
+  <div style="max-width: 1120px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
+    <a href="index.html" style="display: flex; align-items: center; gap: 10px; text-decoration: none; min-width: 0;">
+      <span aria-hidden="true" style="display: flex; flex-direction: column; gap: 3px; flex: none;">
+        <i style="display: block; width: 26px; height: 5px; background: #ffaa1d;"></i>
+        <i style="display: block; width: 26px; height: 5px; background: #ffaa1d;"></i>
+        <i style="display: block; width: 26px; height: 5px; background: #ffaa1d;"></i>
+      </span>
+      <span style="font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; font-weight: 800; text-transform: uppercase; color: #fff; line-height: 0.95; font-size: 17px; letter-spacing: 0.03em;">Chelmsford<br>Overhead Door</span>
+    </a>
+    <a href="{TEL}" style="flex: none; display: flex; flex-direction: column; align-items: center; text-decoration: none; background: #ffaa1d; color: #18242e; padding: 8px 16px; line-height: 1.1;">
+      <span style="font-family: 'IBM Plex Mono', monospace; font-size: 10px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase;">Call now</span>
+      <span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 19px; letter-spacing: 0.03em;">{PHONE}</span>
+    </a>
+{btn}
+  </div>
+{panel}
+</header>
+<main style="min-height: 70vh; display: flex; align-items: center; background-image: repeating-linear-gradient(to bottom, transparent 0px, transparent 71px, #2c3f50 71px, #2c3f50 73px, rgba(255,255,255,0.05) 73px, rgba(255,255,255,0.05) 74px, transparent 74px);">
+  <div style="max-width: 720px; margin: 0 auto; padding: 64px 20px; text-align: center;">
+    <p style="margin: 0 0 14px; font-family: 'IBM Plex Mono', monospace; font-size: 12px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase; color: #ffaa1d;">Error 404</p>
+    <h1 style="margin: 0; font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; font-weight: 800; text-transform: uppercase; line-height: 0.96; color: #fff; font-size: clamp(44px, 9vw, 76px);">This page is<br><span style="color: #ffaa1d;">off its track.</span></h1>
+    <p style="margin: 20px auto 0; font-size: 17px; line-height: 1.55; color: #cdd7dd; max-width: 44ch;">The page you're looking for doesn't exist or has moved. The doors below all open just fine.</p>
+    <nav aria-label="Helpful links" style="display: flex; flex-wrap: wrap; gap: 8px 22px; justify-content: center; margin-top: 26px; font-size: 15px;">
+        {links}
+    </nav>
+    <div style="display: flex; justify-content: center; margin-top: 32px;">
+      <a href="{TEL}" style="display: inline-flex; flex-direction: column; align-items: center; text-decoration: none; background: #ffaa1d; color: #18242e; padding: 14px 28px; line-height: 1.1;">
+        <span style="font-family: 'IBM Plex Mono', monospace; font-size: 11px; font-weight: 600; letter-spacing: 0.16em; text-transform: uppercase;">Tap to call — we answer</span>
+        <span style="font-family: 'Barlow Condensed', sans-serif; font-weight: 800; font-size: 26px; letter-spacing: 0.02em;">{PHONE}</span>
+      </a>
+    </div>
+  </div>
+</main>
+</body>
+</html>
+"""
+    with open(os.path.join(OUT, "404.html"), "w") as f:
+        f.write(doc)
+
+
 def write_seo_files(out_rels):
     urls = [DOMAIN + "/"] + [DOMAIN + "/" + r for r in sorted(out_rels) if r != "index.html"]
     body = "\n".join(
@@ -393,6 +637,8 @@ def main():
     for src_rel in sources:
         out_rels.append(compile_page(src_rel))
     write_assets()
+    write_icons()
+    write_404()
     write_seo_files(out_rels)
     print(f"Built {len(out_rels)} pages into {OUT}")
 

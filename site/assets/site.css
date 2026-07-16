@@ -67,6 +67,44 @@ img, svg, video, iframe { max-width: 100%; }
   footer { padding-bottom: 44px !important; }
 }
 
+/* Accessibility: skip link + visible keyboard focus */
+.cod-skip {
+  position: absolute; left: -9999px; top: 0; z-index: 100;
+  background: #ffaa1d; color: #18242e; text-decoration: none;
+  font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; font-weight: 700;
+  text-transform: uppercase; letter-spacing: .05em; font-size: 16px; padding: 10px 18px;
+}
+.cod-skip:focus { left: 0; }
+a:focus-visible, button:focus-visible, input:focus-visible, textarea:focus-visible {
+  outline: 2px solid #ffaa1d; outline-offset: 2px;
+}
+
+/* Current page highlighted in navs (set by site.js) */
+.cod-menu a[aria-current="page"],
+.cod-desktop nav a[aria-current="page"] { color: #ffaa1d !important; }
+
+/* FAQ accordion: rotate the + marker when open */
+details > summary > span:last-child { transition: transform .18s ease; }
+details[open] > summary > span:last-child { transform: rotate(45deg); }
+
+/* Scroll-reveal (site.js tags below-the-fold sections; no-JS pages stay visible) */
+@media (prefers-reduced-motion: no-preference) {
+  html { scroll-behavior: smooth; }
+  .cod-reveal { opacity: 0; transform: translateY(16px); }
+  .cod-reveal.cod-in { opacity: 1; transform: none; transition: opacity .55s ease, transform .55s ease; }
+}
+
+/* Photo placeholders: a touch of depth + amber threshold line */
+.cod-photo { position: relative; overflow: hidden; }
+.cod-photo::before {
+  content: ""; position: absolute; inset: 0;
+  background: linear-gradient(120deg, rgba(255,255,255,.05) 0%, transparent 45%);
+}
+.cod-photo::after {
+  content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 5px;
+  background: #ffaa1d; opacity: .85;
+}
+
 /* Generated :hover rules (compiled from style-hover attributes) */
 [data-hv="1"]:hover{background: #ffb946 !important}
 [data-hv="2"]:hover{background: #223343 !important}
