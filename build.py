@@ -377,7 +377,10 @@ details[open] > summary > span:last-child { transform: rotate(45deg); }
 
 /* Paint the canvas dark so overscroll past the footer (or above the header)
    never flashes white against the dark chrome. Body keeps the light ground. */
-html { background: #101a21; }
+html { background: #101a21; overscroll-behavior-y: none; }
+/* Belt-and-suspenders for iOS rubber-band: bleed the footer's color far past
+   its box so any viewport area revealed below the document stays dark. */
+footer { box-shadow: 0 80vh 0 80vh #101a21; }
 
 /* Photo placeholders: a touch of depth + amber threshold line */
 .cod-photo { position: relative; overflow: hidden; }
