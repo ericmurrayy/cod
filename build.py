@@ -381,11 +381,20 @@ details[open] > summary > span:last-child { transform: rotate(45deg); }
 }
 
 /* Paint the canvas dark so overscroll past the footer (or above the header)
-   never flashes white against the dark chrome. Body keeps the light ground. */
-html { background: #101a21; overscroll-behavior-y: none; }
+   never flashes white against the dark chrome. The page wrapper div carries
+   the light ground, so body can go dark too. */
+html, body { background: #101a21; }
+html { overscroll-behavior-y: none; }
 /* Belt-and-suspenders for iOS rubber-band: bleed the footer's color far past
    its box so any viewport area revealed below the document stays dark. */
 footer { box-shadow: 0 80vh 0 80vh #101a21; }
+/* iOS Safari can still expose the canvas while the rubber-band is in motion;
+   a fixed underlay one viewport taller than the screen on each side keeps
+   every reveal dark no matter how the page is dragged. */
+body::before {
+  content: ""; position: fixed; left: 0; right: 0; top: -100vh; bottom: -100vh;
+  z-index: -1; background: #101a21; pointer-events: none;
+}
 
 /* Photo placeholders: a touch of depth + amber threshold line */
 .cod-photo { position: relative; overflow: hidden; }
