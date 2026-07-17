@@ -188,6 +188,7 @@ def compile_page(src_rel):
     if leftover:
         raise SystemExit(f"{src_rel}: unresolved template expression {leftover.group(0)}")
 
+    body = normalize_logo(body)
     body = inject_menu(body, out_rel)
     body = rewrite_links(body, out_rel)
     # Skip-link target right after the sticky header.
@@ -266,6 +267,25 @@ def menu_html(out_rel):
       {links}
       <a class="cod-menu-call" href="{TEL}">Call {PHONE} — same-day</a>
     </nav>"""
+
+
+# The homepage's header mark: an amber door frame with two panels, matching
+# the favicon. Subpage sources ship a three-bar fallback instead, which reads
+# as a hamburger icon — normalize_logo swaps it for the real mark everywhere.
+LOGO_MARK_SVG = """<svg aria-hidden="true" width="34" height="34" viewBox="0 0 34 34" style="flex: none; display: block;">
+          <rect x="2" y="2" width="30" height="30" fill="none" stroke="#ffaa1d" stroke-width="3"></rect>
+          <rect x="7.5" y="7.5" width="19" height="5" fill="#ffaa1d"></rect>
+          <rect x="7.5" y="14.5" width="19" height="5" fill="#ffaa1d"></rect>
+        </svg>"""
+
+_LOGO_FALLBACK_RE = re.compile(
+    r'<span aria-hidden="true" style="display: flex; flex-direction: column;'
+    r' gap: 3px; flex: none;">\s*(?:<i\b[^>]*></i>\s*){3}</span>'
+)
+
+
+def normalize_logo(body):
+    return _LOGO_FALLBACK_RE.sub(LOGO_MARK_SVG, body)
 
 
 def inject_menu(body, out_rel):
@@ -564,11 +584,11 @@ def write_404():
 <header style="position: sticky; top: 0; z-index: 50; background: #18242e; border-bottom: 1px solid #2c3f50;">
   <div style="max-width: 1120px; margin: 0 auto; padding: 10px 16px; display: flex; align-items: center; justify-content: space-between; gap: 12px;">
     <a href="index.html" style="display: flex; align-items: center; gap: 10px; text-decoration: none; min-width: 0;">
-      <span aria-hidden="true" style="display: flex; flex-direction: column; gap: 3px; flex: none;">
-        <i style="display: block; width: 26px; height: 5px; background: #ffaa1d;"></i>
-        <i style="display: block; width: 26px; height: 5px; background: #ffaa1d;"></i>
-        <i style="display: block; width: 26px; height: 5px; background: #ffaa1d;"></i>
-      </span>
+      <svg aria-hidden="true" width="34" height="34" viewBox="0 0 34 34" style="flex: none; display: block;">
+        <rect x="2" y="2" width="30" height="30" fill="none" stroke="#ffaa1d" stroke-width="3"></rect>
+        <rect x="7.5" y="7.5" width="19" height="5" fill="#ffaa1d"></rect>
+        <rect x="7.5" y="14.5" width="19" height="5" fill="#ffaa1d"></rect>
+      </svg>
       <span style="font-family: 'Barlow Condensed', 'Arial Narrow', sans-serif; font-weight: 800; text-transform: uppercase; color: #fff; line-height: 0.95; font-size: 17px; letter-spacing: 0.03em;">Chelmsford<br>Overhead Door</span>
     </a>
     <a href="{TEL}" style="flex: none; display: flex; flex-direction: column; align-items: center; text-decoration: none; background: #ffaa1d; color: #18242e; padding: 8px 16px; line-height: 1.1;">
